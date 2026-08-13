@@ -5,6 +5,21 @@ All notable changes to `@getokta/okta-connect-sdk` are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **CI now proves Node 18 support by loading the built package there**, rather
+  than by running the suite. Vitest 4 requires Node 20+, so the suite runs on
+  Node 20/22/24 and a separate job builds on 22 and then executes
+  `scripts/smoke.{mjs,cjs}` under Node 18. The package's supported runtimes are
+  unchanged (`engines: >=18.17`) — the SDK has no runtime dependencies and needs
+  only global `fetch` and `node:crypto`.
+- Added `npm run smoke`: loads `dist/` the way a consumer does and asserts the
+  wiring end to end (request shaping, typed errors, pagination, webhook
+  verification and routing, embed JWT signature, escaping). It covers what the
+  unit suite cannot — that the *shipped bundles*, ESM and CJS alike, work.
+
 ## [1.0.0] — 2026-08-13
 
 First release. Full parity with the tenant surface of the Okta Connect public
@@ -75,7 +90,8 @@ API (`/api/v1`), mirroring the PHP SDK's coverage in idiomatic TypeScript.
   an `onRetry` hook for observability.
 
 - **Packaging** — dual ESM + CommonJS builds with generated `.d.ts`, zero
-  runtime dependencies, Node 18.17+, and CI across Node 18/20/22/24.
+  runtime dependencies, and Node 18.17+. CI runs the suite on Node 20/22/24 and
+  loads the built package under Node 18.
 
 ### Notes
 

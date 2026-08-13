@@ -554,9 +554,15 @@ camelCase** — so the types check directly against the platform's API docs.
 ```bash
 npm install
 npm test          # vitest
-npm run typecheck # tsc --noEmit
+npm run typecheck # tsc --noEmit (also compiles the README's examples)
 npm run build     # tsup → dist/ (ESM + CJS + .d.ts)
+npm run smoke     # load the built ESM + CJS bundles and assert the wiring
 ```
+
+The suite runs on Node 20/22/24 — vitest itself requires Node 20+. Node 18
+remains supported by the package, and CI proves it by building on Node 22 and
+then running `npm run smoke` under Node 18, which is what a consumer on 18
+actually does.
 
 ## License
 

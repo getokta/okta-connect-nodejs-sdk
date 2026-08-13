@@ -6,12 +6,15 @@ on:
   pull_request:
 
 jobs:
+  # The suite runs on every Node the test runner supports. Vitest requires
+  # Node 20+, which is why 18 is covered by the `compat` job below instead —
+  # the SDK itself still runs there.
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node: ['18', '20', '22', '24']
+        node: ['20', '22', '24']
     name: Node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v4
@@ -32,3 +35,38 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Smoke-test the built package
+        run: npm run smoke
+
+  # Node 18 is the package's declared floor (`engines: >=18.17`), but the dev
+  # toolchain can't run there. Build on a supported Node, then load the built
+  # bundles under 18 — which is what a consumer on 18 actually does, and a
+  # sharper check than running the suite against `src/` would be.
+  compat:
+    runs-on: ubuntu-latest
+    name: Node 18 (built package)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build
+
+      - name: Switch to Node 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Smoke-test the built package on Node 18
+        run: |
+          node --version
+          node scripts/smoke.mjs
+          node scripts/smoke.cjs
