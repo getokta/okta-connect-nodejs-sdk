@@ -1,0 +1,69 @@
+{
+  "name": "@getokta/okta-connect-sdk",
+  "version": "1.0.0",
+  "description": "Official Node.js/TypeScript SDK for Okta Connect — the omnichannel messaging platform (WhatsApp, email, social publishing, campaigns).",
+  "license": "MIT",
+  "author": "Okta Connect",
+  "homepage": "https://github.com/getokta/okta-connect-nodejs-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/getokta/okta-connect-nodejs-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/getokta/okta-connect-nodejs-sdk/issues"
+  },
+  "keywords": [
+    "okta",
+    "connect",
+    "whatsapp",
+    "email",
+    "sdk",
+    "messaging",
+    "omnichannel",
+    "publishing",
+    "telegram",
+    "instagram"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "esbuild": "^0.28.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
