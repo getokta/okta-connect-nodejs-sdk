@@ -8,6 +8,11 @@ name: Release
 #
 # Either way the full gate runs before anything is published, so a release can
 # never be cut from a commit that doesn't typecheck, test and build.
+#
+# Every publishing step is idempotent: an existing release or an
+# already-published version is reported and skipped, not treated as an error.
+# That makes a re-dispatch the supported way to finish a partial release — for
+# instance to push an already-released version to npm after NPM_TOKEN is added.
 on:
   push:
     tags:
@@ -22,10 +27,15 @@ on:
 permissions:
   contents: write # create the tag + GitHub Release
   packages: write # publish to GitHub Packages
+  id-token: write # npm provenance attestation
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # Lifted to the job env so the publish steps can branch on whether the
+      # secret exists — an unset NPM_TOKEN skips npm instead of failing.
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,11 +59,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Smoke-test the built package
+        run: npm run smoke
+
       - name: Resolve version
         id: version
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
+          PKG_NAME="$(node -p "require('./package.json').name")"
           PKG_VERSION="$(node -p "require('./package.json').version")"
 
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -70,6 +84,7 @@ jobs:
             exit 1
           fi
 
+          echo "name=$PKG_NAME" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -98,8 +113,8 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::error::Release $TAG already exists. Bump the version or delete the release first."
-            exit 1
+            echo "::notice::Release $TAG already exists — leaving it untouched."
+            exit 0
           fi
 
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -118,7 +133,46 @@ jobs:
               ./*.tgz
           fi
 
+      # The registry configured on the job's setup-node is still GitHub
+      # Packages, so this publish needs no --registry flag (and must not have
+      # one: the auth line in .npmrc is keyed to that host).
       - name: Publish to GitHub Packages
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
-        run: npm publish --ignore-scripts
+          PKG: ${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }}
+        run: |
+          if npm view "$PKG" version >/dev/null 2>&1; then
+            echo "::notice::$PKG is already on GitHub Packages — skipping."
+            exit 0
+          fi
+
+          npm publish --ignore-scripts
+
+      - name: Configure the npm registry
+        if: env.NPM_TOKEN != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish to npm
+        if: env.NPM_TOKEN != ''
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PKG: ${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }}
+        run: |
+          if npm view "$PKG" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "::notice::$PKG is already on npm — skipping."
+            exit 0
+          fi
+
+          # --provenance signs the package with a verifiable link back to this
+          # workflow run and commit, so consumers can confirm where it was built.
+          npm publish --ignore-scripts --access public --provenance
+
+      - name: Report the skipped npm publish
+        if: env.NPM_TOKEN == ''
+        run: |
+          echo "::notice::NPM_TOKEN is not set — published to GitHub Packages only. \
+          Add the secret under Settings → Secrets and variables → Actions, then \
+          re-dispatch this workflow to publish the same version to npm."

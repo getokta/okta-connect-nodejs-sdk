@@ -7,7 +7,24 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- **Releases now publish to the public npm registry** as well as GitHub
+  Packages, so `npm install @getokta/okta-connect-sdk` works with no `.npmrc`
+  setup (GitHub Packages requires authentication even for public packages).
+  Published with `--provenance`, which signs the package with a verifiable link
+  back to the workflow run and commit that built it.
+- The npm step is **gated on an `NPM_TOKEN` secret**: without it the release
+  still completes to GitHub Packages and logs that npm was skipped, rather than
+  failing.
+
 ### Changed
+
+- **Every publishing step in the release workflow is now idempotent.** An
+  existing GitHub Release, or a version already present on a registry, is
+  reported and skipped instead of failing the run. Re-dispatching is now the
+  supported way to finish a partial release — e.g. pushing an already-released
+  version to npm once `NPM_TOKEN` is configured.
 
 - **CI now proves Node 18 support by loading the built package there**, rather
   than by running the suite. Vitest 4 requires Node 20+, so the suite runs on

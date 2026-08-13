@@ -24,6 +24,22 @@ Requires **Node 18.17+** (for global `fetch`). Works in Deno and Bun; in edge
 runtimes without `node:crypto`, the API client works but `Embed` and the
 webhook verification helpers do not.
 
+<details>
+<summary>Installing from GitHub Packages instead</summary>
+
+Every release is published to both npm and GitHub Packages. The npm registry is
+the default and needs no setup. To pull from GitHub Packages, point the scope at
+it — note that GitHub Packages requires authentication **even for public
+packages**, so a token with `read:packages` is needed either way:
+
+```ini
+# .npmrc
+@getokta:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+</details>
+
 ## Quickstart
 
 ```ts
