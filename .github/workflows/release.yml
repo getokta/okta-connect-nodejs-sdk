@@ -84,7 +84,15 @@ jobs:
             exit 1
           fi
 
+          # The leading @scope, when the package has one — the npm publish step
+          # needs it to override the per-scope registry mapping.
+          case "$PKG_NAME" in
+            @*/*) SCOPE="${PKG_NAME%%/*}" ;;
+            *) SCOPE="" ;;
+          esac
+
           echo "name=$PKG_NAME" >> "$GITHUB_OUTPUT"
+          echo "scope=$SCOPE" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -148,22 +156,41 @@ jobs:
 
           npm publish --ignore-scripts
 
-      - name: Configure the npm registry
-        if: env.NPM_TOKEN != ''
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-
       - name: Publish to npm
         if: env.NPM_TOKEN != ''
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           PKG: ${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }}
+          SCOPE: ${{ steps.version.outputs.scope }}
         run: |
           if npm view "$PKG" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
             echo "::notice::$PKG is already on npm — skipping."
             exit 0
+          fi
+
+          # Write the registry config explicitly rather than reconfiguring
+          # setup-node. Pointing setup-node at GitHub Packages leaves a
+          # per-scope mapping (`@scope:registry=npm.pkg.github.com`) behind, and
+          # for a scoped package that mapping beats any later default-registry
+          # change — so a second setup-node silently publishes to the WRONG
+          # registry and 401s with the npm token. A project-level .npmrc takes
+          # precedence over setup-node's user-level config, so this overrides
+          # both the default and the scope mapping. npm never packs .npmrc, so
+          # it cannot leak into the tarball, and npm expands ${NODE_AUTH_TOKEN}
+          # from the environment, so the token is never written to disk.
+          echo "registry=https://registry.npmjs.org/" > .npmrc
+
+          if [ -n "$SCOPE" ]; then
+            echo "${SCOPE}:registry=https://registry.npmjs.org/" >> .npmrc
+          fi
+
+          echo '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' >> .npmrc
+
+          # Fail loudly if anything still resolves away from npmjs.
+          RESOLVED="$(npm config get registry)"
+          if [ "$RESOLVED" != "https://registry.npmjs.org/" ]; then
+            echo "::error::Expected registry.npmjs.org, resolved $RESOLVED."
+            exit 1
           fi
 
           # --provenance signs the package with a verifiable link back to this

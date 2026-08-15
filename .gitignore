@@ -6,6 +6,10 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Written by the release workflow (and often by hand) with a registry auth
+# token — must never be committed.
+.npmrc
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
