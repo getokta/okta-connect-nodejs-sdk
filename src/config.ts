@@ -69,8 +69,15 @@ export interface ResolvedConfig {
   onRetry?: RetryListener;
 }
 
-/** The SDK version, stamped into the User-Agent. Bumped by the release script. */
-export const VERSION = '1.0.0';
+/**
+ * The SDK version, stamped into the User-Agent.
+ *
+ * Kept as a literal rather than imported from package.json, so the bundle
+ * doesn't depend on package.json being resolvable at runtime (it isn't, under
+ * some bundlers). It MUST match package.json's version — a test asserts this,
+ * because a drifted value silently mislabels every request in our logs.
+ */
+export const VERSION = '1.0.1';
 
 function readEnv(key: string): string | undefined {
   // Guarded so the SDK also loads in environments without `process` (edge

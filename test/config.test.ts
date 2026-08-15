@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
-import { InvalidArgumentError, OktaConnect, resolveConfig } from '../src/index.js';
+import { InvalidArgumentError, OktaConnect, resolveConfig, VERSION } from '../src/index.js';
 
 const ENV_KEYS = ['OKTA_CONNECT_BASE_URL', 'OKTA_CONNECT_TOKEN'] as const;
 const saved = new Map<string, string | undefined>();
@@ -13,6 +14,16 @@ afterEach(() => {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
   }
+});
+
+describe('VERSION', () => {
+  it('matches package.json, so the User-Agent never mislabels a request', () => {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as { version: string };
+
+    expect(VERSION).toBe(pkg.version);
+  });
 });
 
 describe('resolveConfig', () => {

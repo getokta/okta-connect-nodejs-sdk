@@ -156,8 +156,16 @@ jobs:
 
           npm publish --ignore-scripts
 
+      # Trusted publishing exchanges the workflow's OIDC identity for a
+      # short-lived registry credential, which needs npm 11.5.1+. The Node 22
+      # image ships npm 10.x, so upgrade rather than pin the whole job to a
+      # newer Node purely for the CLI.
+      - name: Use an npm that supports trusted publishing
+        if: env.NPM_TOKEN != '' || vars.NPM_TRUSTED_PUBLISHING == 'true'
+        run: npm install -g npm@^11.5.1
+
       - name: Publish to npm
-        if: env.NPM_TOKEN != ''
+        if: env.NPM_TOKEN != '' || vars.NPM_TRUSTED_PUBLISHING == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           PKG: ${{ steps.version.outputs.name }}@${{ steps.version.outputs.version }}
@@ -184,7 +192,16 @@ jobs:
             echo "${SCOPE}:registry=https://registry.npmjs.org/" >> .npmrc
           fi
 
-          echo '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' >> .npmrc
+          # With trusted publishing there is no token at all: npm mints a
+          # short-lived credential from this workflow's OIDC identity. Only
+          # write an auth line when a token is actually configured — an empty
+          # `_authToken=` would otherwise override the OIDC path and 401.
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            echo "Publishing with NPM_TOKEN."
+            echo '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' >> .npmrc
+          else
+            echo "Publishing via trusted publishing (OIDC) — no token in play."
+          fi
 
           # Fail loudly if anything still resolves away from npmjs.
           RESOLVED="$(npm config get registry)"

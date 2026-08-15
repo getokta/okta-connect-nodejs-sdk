@@ -5,7 +5,15 @@ All notable changes to `@getokta/okta-connect-sdk` are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.1] — 2026-08-15
+
+No changes to the SDK's behaviour or API — this release exists to give both
+registries an identical, reproducible `1.0.1` tarball, and to fold in the
+packaging fixes below.
+
+> **Note on 1.0.0:** it was published to GitHub Packages and to npm from two
+> different commits, so the two registries hold different tarballs under the
+> same version. 1.0.1 is published to both from a single run. Prefer 1.0.1.
 
 ### Added
 
@@ -17,6 +25,24 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - The npm step is **gated on an `NPM_TOKEN` secret**: without it the release
   still completes to GitHub Packages and logs that npm was skipped, rather than
   failing.
+- **Trusted publishing (OIDC) support.** With a trusted publisher configured on
+  npm and the repository variable `NPM_TRUSTED_PUBLISHING=true`, releases
+  publish with a short-lived credential minted from the workflow's own
+  identity — no `NPM_TOKEN` to store, leak, or renew. The token path still
+  works and takes precedence when the secret is present.
+- A test asserting `VERSION` matches `package.json`, so the version stamped
+  into the User-Agent can't silently drift from the released one.
+
+### Fixed
+
+- **npm publishes went to the wrong registry.** Pointing `setup-node` at GitHub
+  Packages leaves a per-scope mapping (`@scope:registry=npm.pkg.github.com`)
+  behind, and for a scoped package that mapping beats a later default-registry
+  change — so the npm token was sent to GitHub Packages and 401'd. The publish
+  step now writes its own project-level `.npmrc` (which outranks setup-node's
+  user-level config) and fails loudly if the registry still resolves anywhere
+  but npmjs.
+- `.npmrc` is gitignored, so a local one can't be committed with a token in it.
 
 ### Changed
 
