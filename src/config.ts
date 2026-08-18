@@ -77,7 +77,7 @@ export interface ResolvedConfig {
  * some bundlers). It MUST match package.json's version — a test asserts this,
  * because a drifted value silently mislabels every request in our logs.
  */
-export const VERSION = '1.0.1';
+export const VERSION = '1.1.0';
 
 function readEnv(key: string): string | undefined {
   // Guarded so the SDK also loads in environments without `process` (edge
