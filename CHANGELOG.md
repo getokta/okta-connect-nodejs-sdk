@@ -5,7 +5,7 @@ All notable changes to `@getokta/okta-connect-sdk` are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] — 2026-08-18
+## [2.0.0] — 2026-08-18
 
 ### Removed (security hardening) — BREAKING
 - **Dropped `EmbedScope.ADMIN`.** The constant, and the mint defaults that
