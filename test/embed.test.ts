@@ -38,7 +38,7 @@ describe('Embed', () => {
       sub: 'partner-user-7',
       email: 'op@acme.com',
       name: 'Op',
-      scope: EmbedScope.ADMIN,
+      scope: EmbedScope.INBOX,
     });
     expect(typeof payload.jti).toBe('string');
     expect(payload.exp as number).toBeGreaterThan(payload.iat as number);

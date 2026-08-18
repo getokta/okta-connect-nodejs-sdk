@@ -305,6 +305,19 @@ for await (const contact of client.contacts.listAll({ search: '+966' })) {
 }
 ```
 
+## Provisioning workspaces
+
+This SDK is the **per-workspace** developer surface: messages,
+conversations, contacts, channels, templates, groups, webhooks, embed
+tokens. It does not create workspaces or manage their users.
+
+If you are building a product on top of Connect and need to provision
+workspaces, add and manage their users, mint workspace API tokens or
+reserve channels, that is the **Partner API**. Apply for a technical
+partner account and you get your own `client_id` / `client_secret`; the
+endpoints live under `/api/v1/partner/*`. See the platform's
+`docs/PARTNER_API.md`.
+
 ## Connecting an account (OAuth-style, one click)
 
 The easy way to get a token for a user's workspace — no copy-pasted API keys.

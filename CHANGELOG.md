@@ -5,6 +5,25 @@ All notable changes to `@getokta/okta-connect-sdk` are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] — 2026-08-18
+
+### Removed (security hardening) — BREAKING
+- **Dropped `EmbedScope.ADMIN`.** The constant, and the mint defaults that
+  pointed at it, produced embed JWTs carrying the platform-operator scope —
+  a grant no consumer of a public package is entitled to. `EmbedScope.INBOX`
+  is now the only scope this SDK mints and the default for `ssoToken()`,
+  `ssoUrl()`, `sessionToken()` and `embedUrl()`; any other value throws
+  `InvalidArgumentError`.
+  - **Migration:** replace `EmbedScope.ADMIN` with `EmbedScope.INBOX`, or
+    drop the `scope` option entirely.
+
+### Changed
+- Documentation no longer names platform-operator endpoints or abilities.
+  Products that need to create workspaces, manage their users, mint workspace
+  tokens or reserve channels use the **Partner API** (`/api/v1/partner/*`)
+  with their own `client_id`/`client_secret` — see the platform's
+  `docs/PARTNER_API.md`.
+
 ## [1.0.1] — 2026-08-15
 
 No changes to the SDK's behaviour or API — this release exists to give both

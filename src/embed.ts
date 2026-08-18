@@ -56,12 +56,17 @@ export function validateUiHide(keys: readonly string[]): string[] {
   return clean;
 }
 
-/** Embed scopes: which surfaces the minted token may reach. */
+/**
+ * Embed scopes: which surfaces the minted token may reach.
+ *
+ * Only the inbox scope is mintable from this SDK. The platform-operator
+ * scope was removed: it is not a grant any consumer of a public package
+ * is entitled to, and defaulting to it handed every integration more
+ * reach than it needed.
+ */
 export const EmbedScope = {
   /** `/embed/inbox/*` only. */
   INBOX: 'platform.inbox',
-  /** Full `/embed/*` access. */
-  ADMIN: 'platform.admin',
 } as const;
 
 export type EmbedScopeValue = (typeof EmbedScope)[keyof typeof EmbedScope];
@@ -81,7 +86,7 @@ export interface EmbedUser {
 }
 
 export interface EmbedMintOptions {
-  /** Defaults to `platform.admin` (or `platform.inbox` for `inboxUrl`). */
+  /** Defaults to `platform.inbox`, the only scope this SDK mints. */
   scope?: EmbedScopeValue;
   /** Feature keys to strip from the inbox chrome. */
   uiHide?: string[];
@@ -153,7 +158,7 @@ export class Embed {
     const ttl = options.ttlSeconds ?? 60;
     assertTtl(ttl, SSO_MAX_TTL);
 
-    return this.encode(user, options.scope ?? EmbedScope.ADMIN, options.uiHide ?? [], ttl);
+    return this.encode(user, options.scope ?? EmbedScope.INBOX, options.uiHide ?? [], ttl);
   }
 
   /**
@@ -182,7 +187,7 @@ export class Embed {
     const ttl = options.ttlSeconds ?? SESSION_MAX_TTL;
     assertTtl(ttl, SESSION_MAX_TTL);
 
-    return this.encode(user, options.scope ?? EmbedScope.ADMIN, options.uiHide ?? [], ttl);
+    return this.encode(user, options.scope ?? EmbedScope.INBOX, options.uiHide ?? [], ttl);
   }
 
   /**
@@ -238,9 +243,9 @@ export class Embed {
       throw new InvalidArgumentError('An embed user requires a non-empty sub and email.');
     }
 
-    if (scope !== EmbedScope.INBOX && scope !== EmbedScope.ADMIN) {
+    if (scope !== EmbedScope.INBOX) {
       throw new InvalidArgumentError(
-        `Unknown scope "${scope}". Use EmbedScope.INBOX or EmbedScope.ADMIN.`,
+        `Unknown scope "${scope}". Use EmbedScope.INBOX.`,
       );
     }
 
