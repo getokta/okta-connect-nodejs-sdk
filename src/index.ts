@@ -53,6 +53,23 @@ export {
   type UiHideKey,
 } from './embed.js';
 
+// --- Partner API (technical partners) ---------------------------------------
+export { PartnerClient, type PartnerClientOptions } from './partner/partner-client.js';
+
+export {
+  PartnerEmbed,
+  PartnerSso,
+  PartnerWorkspaceChannels,
+  PartnerWorkspaces,
+  PartnerWorkspaceTokens,
+  PartnerWorkspaceUsers,
+} from './partner/resources.js';
+
+export { PartnerTokenStore, type PartnerKeyPair } from './partner/token-store.js';
+export { PartnerHttp } from './partner/partner-http.js';
+export { PartnerAbility } from './types/partner.js';
+export type * from './types/partner.js';
+
 // --- Email authoring --------------------------------------------------------
 export { HtmlMessageBuilder } from './email/html-message-builder.js';
 
@@ -129,7 +146,13 @@ export { EmailTemplates } from './resources/email-templates.js';
 export { Emails, type HtmlSource } from './resources/emails.js';
 export { EmbedTokens } from './resources/embed-tokens.js';
 export { Groups } from './resources/groups.js';
-export { Meta, QrPairing } from './resources/integrations.js';
+export {
+  isRetryableQrSession,
+  isTerminalQrSession,
+  Meta,
+  qrTtlSeconds,
+  QrPairing,
+} from './resources/integrations.js';
 export { Messages } from './resources/messages.js';
 export { Resource } from './resources/resource.js';
 export { SocialPosts } from './resources/social-posts.js';

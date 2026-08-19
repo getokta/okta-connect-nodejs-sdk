@@ -49,21 +49,36 @@ export class Meta extends Resource {
  * `/api/integrations/qr/*` — QR pairing, the companion to Embedded Signup for
  * businesses without a Cloud API setup.
  *
- * {@link start} creates the channel and boots a gateway session asynchronously;
- * then poll {@link status} every few seconds until the channel reports
- * `connected` (or a terminal failure).
+ * The gateway session is booted **inside** the {@link start} request, so a
+ * resolved promise means the gateway accepted the boot — not that a code
+ * exists yet. A gateway that refuses rejects with `502 gateway_unavailable`
+ * instead of handing back a row that would sit at `pending` forever.
+ *
+ * Poll every 2–3 seconds and branch on `error`, not on elapsed time — see
+ * {@link isTerminalQrSession} and {@link isRetryableQrSession}. A session
+ * whose row never left `pending` is re-booted by the poll itself, so a channel
+ * stranded by an earlier failure heals without a new session.
  *
  * ```ts
- * const session = await client.qr.start('Sales line');
- * let state = await client.qr.status(session.id!);
- * while (state.status === 'awaiting_scan' || state.status === 'connecting') {
+ * let state = await client.qr.start('Sales line');
+ *
+ * while (!isTerminalQrSession(state)) {
  *   await new Promise((r) => setTimeout(r, 3000));
- *   state = await client.qr.status(session.id!);
+ *   state = await client.qr.status(state.id!);
+ *
+ *   // gateway_unavailable recovers; anything else needs a NEW session.
+ *   if (state.error && !isRetryableQrSession(state)) break;
  * }
  * ```
  */
 export class QrPairing extends Resource {
-  /** Start a pairing session for a new channel. */
+  /**
+   * Start a pairing session for a new channel.
+   *
+   * Rejects with `422 channel_type_unavailable` when the operator has not
+   * enabled the `baileys` channel type for this workspace — an availability
+   * switch, not a billing one: no plan or paid subscription is involved.
+   */
   start(displayName: string, options?: RequestOptions): Promise<QrSession> {
     return this.http
       .post<QrSession>(
@@ -80,4 +95,36 @@ export class QrPairing extends Resource {
       .get<QrSession>(`/api/integrations/qr/sessions/${this.encode(id)}`, undefined, options)
       .then((response) => response.data);
   }
+}
+
+/** Statuses a pairing attempt does not come back from. */
+const TERMINAL_QR_STATUSES: readonly string[] = [
+  'connected',
+  'disconnected',
+  'failed',
+  'qr_expired',
+];
+
+/**
+ * Stop polling.
+ *
+ * `qr_expired` belongs here: the gateway has stopped regenerating the code, so
+ * a loop that kept waiting on it would never end.
+ */
+export function isTerminalQrSession(session: QrSession): boolean {
+  return TERMINAL_QR_STATUSES.includes(String(session.status ?? ''));
+}
+
+/**
+ * Whether the failure is worth another poll at all. A gateway that is merely
+ * unreachable recovers; a session whose code expired or whose boot failed
+ * needs a NEW session, not more polling of this one.
+ */
+export function isRetryableQrSession(session: QrSession): boolean {
+  return session.error === 'gateway_unavailable';
+}
+
+/** The live QR TTL, from whichever key name the platform used. */
+export function qrTtlSeconds(session: QrSession): number | null {
+  return session.qr_ttl_seconds ?? session.expires_in ?? null;
 }

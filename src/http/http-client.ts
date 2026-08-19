@@ -171,6 +171,14 @@ export class HttpClient {
       headers['idempotency-key'] = request.idempotencyKey;
     }
 
+    // An empty value is how a caller says "send this header off" — the
+    // client-credentials exchange, where the body carries the credential and a
+    // bare `Bearer` would claim one we do not have. Empty headers carry no
+    // information anyway, and some proxies reject them outright.
+    for (const [key, value] of Object.entries(headers)) {
+      if (value === '') delete headers[key];
+    }
+
     return headers;
   }
 

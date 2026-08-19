@@ -83,6 +83,20 @@ export interface EmbedUser {
   sub: string;
   email: string;
   name?: string;
+  /**
+   * Organization ulid the session should land on, sent as the `workspace`
+   * claim.
+   *
+   * Without it, an operator who belongs to several workspaces lands on their
+   * **oldest** membership — deterministic, so never a coin flip, but also not
+   * intent. Name one whenever the operator has more than one and you know
+   * which they clicked.
+   *
+   * It grants nothing: the platform still requires an active membership, and
+   * a partner-bound key still reaches only workspaces that partner manages.
+   * The claim picks between doors the user can already open.
+   */
+  workspace?: string;
 }
 
 export interface EmbedMintOptions {
@@ -95,7 +109,12 @@ export interface EmbedMintOptions {
 }
 
 export interface EmbedOptions {
-  /** JWT `iss`. Override only for a per-partner provisioned secret. */
+  /**
+   * JWT `iss`. Technical partners MUST set their own — `partner:{your-ulid}`,
+   * not `okta-web`. A token signed under the wrong issuer is refused
+   * server-side, and the browser renders that as an inbox which silently never
+   * signs in. `PartnerClient.embedSigner()` derives it for you.
+   */
   issuer?: string;
   /** JWT `aud`. Override only for a non-default platform deployment. */
   audience?: string;
@@ -265,6 +284,10 @@ export class Embed {
     const cleanUiHide = validateUiHide(uiHide);
 
     if (cleanUiHide.length > 0) payload.ui_hide = cleanUiHide;
+
+    // Omitted entirely when unset, so the platform falls back to the oldest
+    // membership rather than reading an empty string as a workspace id.
+    if (user.workspace) payload.workspace = user.workspace;
 
     const header = base64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
     const body = base64Url(JSON.stringify(payload));
