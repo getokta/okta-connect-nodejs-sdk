@@ -305,18 +305,134 @@ for await (const contact of client.contacts.listAll({ search: '+966' })) {
 }
 ```
 
-## Provisioning workspaces
+## Provisioning workspaces — the Partner API
 
-This SDK is the **per-workspace** developer surface: messages,
-conversations, contacts, channels, templates, groups, webhooks, embed
-tokens. It does not create workspaces or manage their users.
+`OktaConnect` is the **per-workspace** surface: messages, conversations,
+contacts, channels, templates, groups, webhooks, embed tokens. It does not
+create workspaces or manage their users.
 
-If you are building a product on top of Connect and need to provision
-workspaces, add and manage their users, mint workspace API tokens or
-reserve channels, that is the **Partner API**. Apply for a technical
-partner account and you get your own `client_id` / `client_secret`; the
-endpoints live under `/api/v1/partner/*`. See the platform's
-`docs/PARTNER_API.md`.
+That is `PartnerClient`, the surface a **technical partner** (شريك تقني) uses
+to wire Connect into its own product. Apply for a partner account and you get
+your own `client_id` / `client_secret`.
+
+The two are deliberately separate objects. A partner token is bound to the
+partner organization rather than to a tenant, lives in its own store, and is
+rejected by the tenant API exactly as a tenant token is rejected here — one
+object per credential keeps that boundary visible instead of turning it into a
+401 that reads like a bug.
+
+```ts
+import { PartnerClient } from '@getokta/okta-connect-sdk';
+
+const partner = new PartnerClient({
+  baseUrl: 'https://connect.getokta.io',
+  clientId: process.env.OKTA_PARTNER_CLIENT_ID,
+  clientSecret: process.env.OKTA_PARTNER_CLIENT_SECRET,
+});
+
+// Prove the key is live before a provisioning run half-completes.
+await partner.can('workspaces.write');
+
+// Idempotent on external_id: a retry after a timeout matches instead of
+// minting a duplicate — and says which happened.
+const { workspace, owner, created, oneTimePassword } = await partner.workspaces.create({
+  name: 'Acme Support',
+  external_id: 'acct_8891',
+  locale: 'ar',
+  owner: { name: 'Sara', email: 'sara@acme.test', password_auto: true },
+});
+
+// Membership — an email Connect already knows is reused, never overwritten.
+const { member } = await partner.users.add(workspace.id!, {
+  name: 'Khalid',
+  email: 'khalid@acme.test',
+  role: 'agent',
+  password_auto: true,
+});
+
+// A tenant token for that workspace's own data plane. `admin` is not
+// mintable here, by design.
+const token = await partner.tokens.create(workspace.id!, {
+  name: 'Acme product sync',
+  user_id: member.id!,
+  abilities: ['read', 'send'],
+});
+
+// …and a client that uses it.
+const client = partner.workspaceClient(token);
+await client.contacts.list();
+
+// Drop an existing member straight into the dashboard: single-use, five
+// minutes, membership re-checked at redemption.
+const link = await partner.sso.issue(workspace.id!, member.id!, '/app/inbox');
+```
+
+Tokens live one hour and are exchanged, refreshed and retried for you: one
+in-flight exchange shared by every concurrent caller (`/token` is rate-limited
+at 10/min), a re-exchange before expiry, and exactly one retry on a 401 that
+slips through anyway. For local development, `{ staticToken }` uses the
+long-lived token from `/app/partner` verbatim.
+
+Also available: `partner.workspaces.listAll()` (async iterator),
+`findByExternalId()`, `suspend()` / `activate()`, `partner.users.update()` /
+`remove()`, `partner.tokens.list()` / `revoke()`, and
+`partner.channels.list()` / `create()`.
+
+Full reference: the platform's `docs/PARTNER_API.md`.
+
+### Embedding, as a partner
+
+Your own signing key and framing allowlist, both self-service:
+
+```ts
+const secret = await partner.embed.issueSecret([
+  'https://mygurb.com',
+  'https://*.mygurb.com',
+]);
+secret.secret; // returned exactly once
+
+// Read what the platform refused: an origin that did not parse fails later as
+// a blank iframe with a 200 and no failed request.
+const { rejected } = await partner.embed.setOrigins(['https://mygurb.com']);
+
+// A signer already wired to partner:{your-ulid} — the issuer is derived, not
+// typed. Signing as `okta-web` is refused server-side, and the browser shows
+// that as an inbox which silently never signs in.
+const embed = await partner.embedSigner(secret.secret);
+const src = embed.inboxUrl({ sub: 'gurb-1', email: 'op@mygurb.test', workspace: workspace.id });
+```
+
+A token signed with a partner key resolves **only** to a user who already
+exists and is an active member of a workspace you manage. It cannot create an
+account, grant a role, or name anyone else's workspace.
+
+### WhatsApp QR pairing
+
+Pairing runs with a **workspace** token (the kind `partner.tokens.create()`
+mints), because the channel belongs to the workspace, not to you.
+
+```ts
+import { isRetryableQrSession, isTerminalQrSession } from '@getokta/okta-connect-sdk';
+
+let state = await client.qr.start('Community line');
+
+while (!isTerminalQrSession(state)) {
+  await new Promise((r) => setTimeout(r, 3000));
+  state = await client.qr.status(state.id!);
+
+  // gateway_unavailable recovers on its own; pairing_failed and qr_expired
+  // need a NEW session, and disconnected means it linked and then dropped.
+  if (state.error && !isRetryableQrSession(state)) break;
+
+  // state.qr is the string to render; qrTtlSeconds(state) the countdown.
+}
+```
+
+Branch on `error`, not on elapsed time. `start()` boots the gateway session
+inside the request, so it rejects with `502 gateway_unavailable` instead of
+handing back a row that would sit at `pending` forever; `422
+channel_type_unavailable` means the operator has not enabled the `baileys`
+channel type for that workspace — an availability switch, not a billing one.
 
 ## Connecting an account (OAuth-style, one click)
 
@@ -471,6 +587,17 @@ const ssoUrl = embed.ssoUrl(operator, '/app/inbox?embedded=1');
 
 Unknown `ui_hide` keys and out-of-range TTLs throw at mint time, so a
 misconfigured embed fails loudly here instead of silently in the browser.
+
+**Which workspace does the session land on?** An operator who belongs to
+several workspaces lands on their *oldest* membership unless you say
+otherwise. Name one with the `workspace` claim:
+
+```ts
+const operator = { sub: 'partner-user-7', email: 'op@acme.com', workspace: workspaceUlid };
+```
+
+It grants nothing — the platform still requires an active membership. The
+claim picks between doors the user can already open.
 
 Separately, `client.embedTokens.create()` mints **visitor** tokens for the
 white-label chat widget (admin-only).

@@ -5,6 +5,57 @@ All notable changes to `@getokta/okta-connect-sdk` are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] — 2026-08-19
+
+### Added
+- **`PartnerClient`** — the surface a technical partner uses to wire Connect
+  into its own product, previously reachable only by hand-rolling HTTP calls
+  after v2.0.0 pointed provisioning at `/api/v1/partner/*`. Covers every
+  endpoint: `me()` / `can()`, workspaces (`create` / `list` / `listAll` / `get`
+  / `update` / `suspend` / `activate` / `findByExternalId`), members, workspace
+  API tokens, channels, one-time sign-in links, and the embed key.
+  - Token lifetime is handled for you: **one in-flight exchange shared by every
+    concurrent caller** (`/token` is rate-limited at 10/min, so a provisioning
+    burst must not become a burst of exchanges), a re-exchange before the hour
+    is up, and exactly one retry on a `401` that slips through anyway.
+    `{ staticToken }` for local development.
+  - `workspaces.create()` returns `created`, because the idempotency
+    contract's answer (201 minted vs 200 matched on `external_id`) is not in
+    the body. `users.add()` returns `created` for the same reason — a reused
+    account returns no one-time password, and that is success rather than a
+    missing field.
+  - `workspaceClient()` builds a tenant `OktaConnect` from a token you just
+    minted, and throws rather than returning a client with no secret when
+    handed a token read back from a list.
+  - `embedSigner()` returns an `Embed` already bound to `partner:{your-ulid}`.
+    Signing as `okta-web` is refused server-side, and the browser renders that
+    refusal as an inbox which silently never signs in.
+  - Workspace tokens carry the identifier under **both** `id` and `token_id`,
+    filled in from whichever the platform sent. The mint response used one
+    name while the revoke route documented the other, so a client that read
+    the documented name stored null and found out at rotation time.
+- **Embed `workspace` claim** — `EmbedUser.workspace` pins the session to an
+  organization. Without it, an operator who belongs to several workspaces
+  lands on their oldest membership: deterministic, but not intent. The claim
+  grants nothing; the platform still requires an active membership.
+- **`QrSession.error`** plus `isTerminalQrSession()`, `isRetryableQrSession()`
+  and `qrTtlSeconds()`. `error` is the field to poll on
+  (`gateway_unavailable` / `pairing_failed` / `qr_expired` / `disconnected`);
+  only `gateway_unavailable` is worth retrying, and `qr_expired` counts as
+  terminal — a loop that waited on it would never end, because the gateway has
+  stopped regenerating the code.
+
+### Fixed
+- `QrSession` declared only the flat payload keys, so `qr_ttl_seconds` and the
+  `channel` envelope the platform also emits were untyped.
+- An empty header value now suppresses the header instead of being sent. The
+  client-credentials exchange carries its credential in the body; a bare
+  `Bearer` there claimed one we do not have.
+
+### Changed
+- README documents the Partner API, partner embedding and QR pairing as first
+  class flows rather than pointing at the platform docs and stopping.
+
 ## [2.0.0] — 2026-08-18
 
 ### Removed (security hardening) — BREAKING

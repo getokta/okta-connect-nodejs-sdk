@@ -658,6 +658,20 @@ export interface EmbeddedSignupChannel {
   [key: string]: unknown;
 }
 
+/**
+ * Why a pairing session stopped making progress. `null` means it has not —
+ * keep polling.
+ *
+ * Only `gateway_unavailable` is worth retrying: the gateway is unreachable or
+ * refusing and recovers on its own. The rest need a **new** session, except
+ * `disconnected`, which means the channel linked and has since dropped.
+ */
+export type QrSessionError =
+  | 'gateway_unavailable'
+  | 'pairing_failed'
+  | 'qr_expired'
+  | 'disconnected';
+
 export interface QrSession {
   id?: Ulid;
   channel_id?: Ulid;
@@ -665,5 +679,15 @@ export interface QrSession {
   /** The QR payload to render; refreshed as the platform rotates it. */
   qr?: string | null;
   expires_in?: number | null;
+  /** Same value as `expires_in` — the platform emits both key names. */
+  qr_ttl_seconds?: number | null;
+  /** The field to branch on while polling. See {@link QrSessionError}. */
+  error?: QrSessionError | string | null;
+  /** The enveloped shape the platform emits alongside the flat keys. */
+  channel?: {
+    id?: Ulid;
+    display_name?: string | null;
+    status?: ChannelStatus;
+  };
   [key: string]: unknown;
 }
