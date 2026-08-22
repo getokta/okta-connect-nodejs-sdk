@@ -377,3 +377,24 @@ function claims(jwt: string): Record<string, unknown> {
 
   return JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
+
+describe('meta embedded signup', () => {
+  it('finalises with the code alone when the postMessage never arrived', async () => {
+    const stub = stubFetch([{ status: 201, body: { channels: [{ id: 'ch_1' }] } }]);
+
+    const { OktaConnect } = await import('../src/index.js');
+    const client = new OktaConnect({
+      baseUrl: 'https://connect.test',
+      token: 'tenant-token',
+      maxRetries: 0,
+      fetch: stub.fetch,
+    });
+
+    const channels = await client.meta.completeEmbeddedSignup('CODE_FROM_FB');
+
+    expect(channels).toHaveLength(1);
+    // An explicit empty waba_id, not an absent key: the platform treats empty
+    // as "derive it from the token".
+    expect(stub.last().body).toMatchObject({ code: 'CODE_FROM_FB', waba_id: '' });
+  });
+});

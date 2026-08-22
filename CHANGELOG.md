@@ -5,6 +5,19 @@ All notable changes to `@getokta/okta-connect-sdk` are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] — 2026-08-19
+
+### Changed
+- `meta.completeEmbeddedSignup(code)` no longer requires `wabaId`. The id
+  comes from Meta's `WA_EMBEDDED_SIGNUP` postMessage, which is delivered to
+  the browser once with no second chance — and the coexistence flow emits a
+  differently-named completion event, so integrations matching `FINISH`
+  exactly never received it at all. The platform now derives the WABA id from
+  the exchanged token when the call omits it, so a signup the operator
+  completed can always be finalised. Pass the id when you have it — that
+  skips the platform's extra lookup. Requires platform 2026-08-19 or later;
+  older platforms still accept the two-argument call unchanged.
+
 ## [2.1.0] — 2026-08-19
 
 ### Added

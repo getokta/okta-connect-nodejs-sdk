@@ -1,6 +1,6 @@
 {
   "name": "@getokta/okta-connect-sdk",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Official Node.js/TypeScript SDK for Okta Connect — the omnichannel messaging platform (WhatsApp, email, social publishing, campaigns).",
   "license": "MIT",
   "author": "Okta Connect",

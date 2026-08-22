@@ -17,7 +17,8 @@ import { Resource } from './resource.js';
  *    callback yields a one-shot `code`.
  * 4. Call {@link completeEmbeddedSignup} with both; the platform exchanges the
  *    code for a system-user token, registers the number, and creates the
- *    channel.
+ *    channel. Missed the postMessage? Call it with the code alone — the
+ *    platform reads the WABA id off the exchanged token.
  *
  * Note these endpoints sit under `/api/integrations`, not `/api/v1`.
  */
@@ -29,10 +30,20 @@ export class Meta extends Resource {
       .then((response) => response.data);
   }
 
-  /** Finalise a signup session; returns the channel(s) that were created. */
+  /**
+   * Finalise a signup session; returns the channel(s) that were created.
+   *
+   * `wabaId` comes from Meta's `WA_EMBEDDED_SIGNUP` postMessage — delivered to
+   * the browser once, with no second chance: a blocked frame, a restored tab,
+   * or a completion event name Meta added later loses it permanently. Since
+   * platform 2026-08 you may omit it in that case: the platform derives the
+   * WABA id from the exchanged token itself instead of failing a signup the
+   * operator already completed. Pass it when you have it — that skips the
+   * extra lookup.
+   */
   async completeEmbeddedSignup(
     code: string,
-    wabaId: string,
+    wabaId = '',
     options?: RequestOptions,
   ): Promise<EmbeddedSignupChannel[]> {
     const response = await this.http.post<{ channels?: EmbeddedSignupChannel[] }>(
