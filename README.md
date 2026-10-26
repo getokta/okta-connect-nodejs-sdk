@@ -155,6 +155,11 @@ const draft = await client.templates.save({
   body_text: 'مرحباً {{1}}، طلبك رقم {{2}} جاهز للاستلام.',
   example_variables: ['سارة', '12345'],   // one per {{N}} — Meta requires them
   group: 'Orders',                         // omit = keep; null / '' = clear
+  buttons: [                               // ≤3; omit = keep stored ones; [] / null = remove
+    { type: 'QUICK_REPLY', text: 'تأكيد' },
+    { type: 'URL', text: 'تتبّع الطلب', url: 'https://example.com/track' },
+    { type: 'PHONE_NUMBER', text: 'اتصل بنا', phone_number: '+966500000000' },
+  ],
 });
 await client.templates.submit(draft.id);   // through the template's own WABA
 await client.templates.delete(draft.id);

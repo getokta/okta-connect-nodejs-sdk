@@ -21,9 +21,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `templates.delete(id)`. These endpoints already existed on the platform; the
   SDK had no wrapper. `save()` takes `group`: omit it to keep the folder,
   `null` or `''` to clear it.
+- **Template buttons** — `SaveTemplateParams.buttons`: up to 3
+  `TemplateButton`s (`QUICK_REPLY`, `URL` with `url`, `PHONE_NUMBER` with
+  `phone_number`; `text` ≤25 chars). Same rule as `group`: omit it to keep the
+  stored buttons (e.g. ones added in the dashboard), `[]` or `null` removes
+  them. The SDK never defaults it, so a call that does not send `buttons`
+  cannot wipe them.
 - `TemplateListParams` gains `category`, `group` and `preset_key`.
 - `Template` gains `group`, `preset_key`, `channel_id` and
-  `example_variables`. `channel_id` is the channel to submit through;
+  `example_variables`, and `buttons` is now typed `TemplateButton[] | null`
+  (was `unknown[] | null`). `channel_id` is the channel to submit through;
   `example_variables` must go back with any edit.
 - `Channel` gains `supports_templates` and `waba_id`, so a client can choose
   a template-capable channel instead of guessing (a QR-paired number has no

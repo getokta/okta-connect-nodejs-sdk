@@ -108,6 +108,11 @@ export async function messaging(client: OktaConnect): Promise<void> {
     body_text: 'مرحباً {{1}}، طلبك رقم {{2}} جاهز للاستلام.',
     example_variables: ['سارة', '12345'],
     group: 'Orders',
+    buttons: [
+      { type: 'QUICK_REPLY', text: 'تأكيد' },
+      { type: 'URL', text: 'تتبّع الطلب', url: 'https://example.com/track' },
+      { type: 'PHONE_NUMBER', text: 'اتصل بنا', phone_number: '+966500000000' },
+    ],
   });
   await client.templates.submit(draft.id);
   await client.templates.delete(draft.id);

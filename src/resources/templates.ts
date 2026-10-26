@@ -65,7 +65,9 @@ export class Templates extends Resource {
   /**
    * Create or update a template, stored as a DRAFT — this does not submit
    * it. Re-posting an existing (`name`, `language`) pair updates it.
-   * Omit `group` to keep the folder; `null` or `''` clears it.
+   * Omit `group` to keep the folder; `null` or `''` clears it. `buttons`
+   * follows the same rule: omit it to keep the stored buttons, pass `[]` or
+   * `null` to remove them.
    */
   save(params: SaveTemplateParams, options?: RequestOptions): Promise<Template> {
     return this.mutate<Template>('post', this.api('/templates'), params, options);

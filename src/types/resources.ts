@@ -195,11 +195,23 @@ export interface Template {
   header_text: string | null;
   body_text: string | null;
   footer_text: string | null;
-  buttons: unknown[] | null;
+  /** Up to three buttons; `null` when the template has none. */
+  buttons: TemplateButton[] | null;
   /** One sample per `{{N}}` — send them back with any edit; Meta requires them. */
   example_variables?: string[] | null;
   created_at: IsoDateTime | null;
 }
+
+export type TemplateButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
+
+/**
+ * A template button. `text` is the label (≤25 chars); a `URL` button needs
+ * `url` and a `PHONE_NUMBER` button needs `phone_number`.
+ */
+export type TemplateButton =
+  | { type: 'QUICK_REPLY'; text: string }
+  | { type: 'URL'; text: string; url: string }
+  | { type: 'PHONE_NUMBER'; text: string; phone_number: string };
 
 export type TemplateCategory = Loose<'UTILITY' | 'MARKETING' | 'AUTHENTICATION'>;
 
@@ -235,6 +247,12 @@ export interface SaveTemplateParams {
   example_variables?: string[] | null;
   /** Folder (≤60 chars). Omit to keep the current one; `null` or `''` clears it. */
   group?: string | null;
+  /**
+   * Up to 3 buttons. Omit to keep the ones already stored (e.g. added in the
+   * dashboard); `[]` or `null` removes them. Sent exactly as given — the SDK
+   * never fills it in.
+   */
+  buttons?: TemplateButton[] | null;
 }
 
 // ---------------------------------------------------------------------------

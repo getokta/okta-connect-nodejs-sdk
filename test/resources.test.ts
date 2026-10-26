@@ -220,6 +220,58 @@ describe('templates', () => {
     expect(stub.last().body).toHaveProperty('group', null);
   });
 
+  it('save sends buttons and the template exposes them', async () => {
+    const buttons = [
+      { type: 'QUICK_REPLY', text: 'Confirm' },
+      { type: 'URL', text: 'Track', url: 'https://example.com/t/1' },
+      { type: 'PHONE_NUMBER', text: 'Call us', phone_number: '+966500000000' },
+    ] as const;
+    const { client, stub } = testClient({
+      status: 201,
+      body: { data: { id: '01HT', name: 'notice', buttons } },
+    });
+
+    const template = await client.templates.save({
+      name: 'notice',
+      language: 'ar',
+      body_text: 'Hello {{1}}, thanks for your order.',
+      buttons: [...buttons],
+    });
+
+    expect(stub.last().body).toHaveProperty('buttons', buttons);
+    expect(template.buttons).toEqual(buttons);
+    const url = template.buttons?.find((b) => b.type === 'URL');
+    expect(url?.type === 'URL' ? url.url : null).toBe('https://example.com/t/1');
+  });
+
+  it('save without buttons leaves the key out so stored ones are kept', async () => {
+    const { client, stub } = testClient({
+      body: { data: { id: '01HT', buttons: [{ type: 'QUICK_REPLY', text: 'Ok' }] } },
+    });
+
+    await client.templates.save({
+      name: 'notice',
+      language: 'ar',
+      body_text: 'Hello {{1}}, thanks for your order.',
+    });
+
+    expect(stub.last().body).not.toHaveProperty('buttons');
+  });
+
+  it('save with an empty button list sends [] to clear them', async () => {
+    const { client, stub } = testClient({ body: { data: { id: '01HT', buttons: null } } });
+
+    const template = await client.templates.save({
+      name: 'notice',
+      language: 'ar',
+      body_text: 'Hello {{1}}, thanks for your order.',
+      buttons: [],
+    });
+
+    expect(stub.last().body).toHaveProperty('buttons', []);
+    expect(template.buttons).toBeNull();
+  });
+
   it('submit posts to /templates/{id}/submit with the optional channel', async () => {
     const { client, stub } = testClient({ body: { data: { id: '01HT', status: 'pending' } } });
 
