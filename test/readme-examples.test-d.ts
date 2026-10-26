@@ -102,6 +102,31 @@ export async function messaging(client: OktaConnect): Promise<void> {
     variables: ['12345', '120 SAR'],
   });
 
+  const draft = await client.templates.save({
+    name: 'order_ready',
+    language: 'ar',
+    body_text: 'مرحباً {{1}}، طلبك رقم {{2}} جاهز للاستلام.',
+    example_variables: ['سارة', '12345'],
+    group: 'Orders',
+  });
+  await client.templates.submit(draft.id);
+  await client.templates.delete(draft.id);
+  await client.templates.list({ category: 'UTILITY', group: 'Orders', preset_key: 'order_shipped' });
+
+  const presets = await client.templates.presets({ category: 'utility', language: 'ar' });
+  for (const preset of presets) {
+    console.log(preset.title, preset.variants[0]?.body_text);
+  }
+  const fromPreset = await client.templates.createFromPreset('order_shipped', {
+    language: 'ar',
+    group: 'Orders',
+    submit: true,
+  });
+  if (fromPreset.submission && !fromPreset.submission.submitted) {
+    console.warn(fromPreset.submission.error);
+    await client.templates.submit(fromPreset.template.id);
+  }
+
   const group = await client.groups.create('Sales pod', ['966500000000', '966500000001']);
   await client.groups.addParticipants(group.id, ['966500000002']);
   await client.groups.update(group.id, { subject: 'Renamed pod' });
