@@ -144,6 +144,53 @@ await client.templates.send({
 });
 ```
 
+Authoring needs a `write` token — never `send` — so a client can own the whole
+template cycle without being allowed to message anyone. `list()` also filters
+by `category`, `group` (your folder) and `preset_key`.
+
+```ts
+const draft = await client.templates.save({
+  name: 'order_ready',
+  language: 'ar',
+  body_text: 'مرحباً {{1}}، طلبك رقم {{2}} جاهز للاستلام.',
+  example_variables: ['سارة', '12345'],   // one per {{N}} — Meta requires them
+  group: 'Orders',                         // omit = keep; null / '' = clear
+  buttons: [                               // ≤3; omit = keep stored ones; [] / null = remove
+    { type: 'QUICK_REPLY', text: 'تأكيد' },
+    { type: 'URL', text: 'تتبّع الطلب', url: 'https://example.com/track' },
+    { type: 'PHONE_NUMBER', text: 'اتصل بنا', phone_number: '+966500000000' },
+  ],
+});
+await client.templates.submit(draft.id);   // through the template's own WABA
+await client.templates.delete(draft.id);
+
+// Choose a channel that can carry templates instead of guessing:
+const page = await client.channels.whatsapp('connected');
+const official = page.data.filter((channel) => channel.supports_templates);
+```
+
+#### Template library
+
+Ready-made wording, in Arabic and English, written to pass Meta's review
+rules. Operational notices are `utility`; anything Meta treats as promotion is
+labelled `marketing`.
+
+```ts
+const presets = await client.templates.presets({ category: 'utility', group: 'commerce', language: 'ar' });
+
+// Copy one into the workspace as a draft, optionally submitting it at once.
+const { template, submission } = await client.templates.createFromPreset('order_shipped', {
+  language: 'ar',     // default: the preset's first language
+  group: 'Orders',
+  submit: true,
+});
+
+// The template is created even when submission fails — this is not a rejection.
+if (submission && !submission.submitted) {
+  console.warn(submission.error);   // e.g. 'no_template_capable_channel'
+}
+```
+
 ### WhatsApp groups
 
 Baileys channels only — Cloud API has no group-management surface.

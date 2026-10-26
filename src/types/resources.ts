@@ -9,6 +9,7 @@ import type {
   EmailStatus,
   IsoDate,
   IsoDateTime,
+  Loose,
   MessageDirection,
   MessageStatus,
   MessageType,
@@ -73,6 +74,14 @@ export interface Channel {
   status: ChannelStatus;
   display_name: string | null;
   phone_number: string | null;
+  /**
+   * Whether the channel can carry WhatsApp message templates. Templates live
+   * on a WABA, so only a `cloud_api` channel with a `waba_id` qualifies — a
+   * QR-paired number has nowhere to send the definition. Pick the channel
+   * from this flag instead of guessing. Absent on platforms before 2026-09.
+   */
+  supports_templates?: boolean;
+  waba_id?: string | null;
   connected_at: IsoDateTime | null;
   last_seen_at: IsoDateTime | null;
 }
@@ -173,18 +182,151 @@ export interface Template {
   language: string | null;
   category: string | null;
   status: TemplateStatus;
+  /** The merchant's own folder; `null` when unfiled. */
+  group?: string | null;
+  /** The library preset this template was created from; `null` = written by hand. */
+  preset_key?: string | null;
+  /**
+   * The channel the template was authored against. Submit it through THAT
+   * channel's WABA, not the workspace default.
+   */
+  channel_id?: Ulid | null;
   header_type: string | null;
   header_text: string | null;
   body_text: string | null;
   footer_text: string | null;
-  buttons: unknown[] | null;
+  /** Up to three buttons; `null` when the template has none. */
+  buttons: TemplateButton[] | null;
+  /** One sample per `{{N}}` — send them back with any edit; Meta requires them. */
+  example_variables?: string[] | null;
   created_at: IsoDateTime | null;
 }
+
+export type TemplateButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
+
+/**
+ * A template button. `text` is the label (≤25 chars); a `URL` button needs
+ * `url` and a `PHONE_NUMBER` button needs `phone_number`.
+ */
+export type TemplateButton =
+  | { type: 'QUICK_REPLY'; text: string }
+  | { type: 'URL'; text: string; url: string }
+  | { type: 'PHONE_NUMBER'; text: string; phone_number: string };
+
+export type TemplateCategory = Loose<'UTILITY' | 'MARKETING' | 'AUTHENTICATION'>;
 
 export interface TemplateListParams {
   status?: TemplateStatus;
   /** Language code, e.g. `ar`. */
   language?: string;
+  /** `UTILITY`, `MARKETING` or `AUTHENTICATION` — any case. */
+  category?: TemplateCategory;
+  /** The merchant's folder. */
+  group?: string;
+  /** Only templates created from this library preset. */
+  preset_key?: string;
+}
+
+/**
+ * `POST /templates` — create or update a DRAFT. Re-posting an existing
+ * (`name`, `language`) pair updates that template.
+ */
+export interface SaveTemplateParams {
+  /** Lowercase letters, digits and underscores. */
+  name: string;
+  language: string;
+  /** Body with sequential `{{1}}`, `{{2}}` placeholders. */
+  body_text: string;
+  category?: 'UTILITY' | 'MARKETING' | 'AUTHENTICATION' | null;
+  /** Channel ULID owning the WABA. */
+  channel_id?: Ulid | null;
+  header_type?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | null;
+  header_text?: string | null;
+  footer_text?: string | null;
+  /** One example per `{{N}}` — Meta rejects a template without them. */
+  example_variables?: string[] | null;
+  /** Folder (≤60 chars). Omit to keep the current one; `null` or `''` clears it. */
+  group?: string | null;
+  /**
+   * Up to 3 buttons. Omit to keep the ones already stored (e.g. added in the
+   * dashboard); `[]` or `null` removes them. Sent exactly as given — the SDK
+   * never fills it in.
+   */
+  buttons?: TemplateButton[] | null;
+}
+
+// ---------------------------------------------------------------------------
+// Template library (presets)
+// ---------------------------------------------------------------------------
+
+export type TemplatePresetCategory = Loose<'utility' | 'marketing' | 'authentication'>;
+
+/** One language version of a preset, in the same field names as `Template`. */
+export interface TemplatePresetVariant {
+  language: string;
+  header_type: string | null;
+  header_text: string | null;
+  body_text: string;
+  footer_text: string | null;
+  buttons: Array<{ type: string; text: string; url?: string; phone_number?: string }>;
+  example_variables: string[];
+  /** Number of `{{N}}` placeholders in the body. */
+  variable_count: number;
+}
+
+/**
+ * A ready-made template written to pass Meta's review rules. `title`,
+ * `description` and `group_label` are translated into the caller's locale.
+ */
+export interface TemplatePreset {
+  /** What `templates.createFromPreset()` takes. */
+  key: string;
+  /** The Meta template name a copy is stored under (suffixed `_2`… when taken). */
+  name: string;
+  /** Library section: `general`, `commerce`, `support`, or a module's own. */
+  group: string;
+  group_label: string;
+  category: TemplatePresetCategory;
+  title: string;
+  description: string;
+  languages: string[];
+  /** Narrowed to one entry when the list was filtered by `language`. */
+  variants: TemplatePresetVariant[];
+}
+
+export interface TemplatePresetListParams {
+  /** `utility`, `marketing` or `authentication` (upper-case is accepted too). */
+  category?: TemplatePresetCategory;
+  group?: string;
+  /** Only presets with this language — and only that variant. */
+  language?: string;
+}
+
+export interface CreateTemplateFromPresetParams {
+  /** Variant to use; defaults to the preset's first (Arabic). */
+  language?: string;
+  /** Channel ULID owning the WABA. */
+  channel_id?: Ulid;
+  /** Override the name. One already taken is refused (422) instead of suffixed. */
+  name?: string;
+  /** The merchant's folder. */
+  group?: string;
+  /** Submit to Meta for review straight away. */
+  submit?: boolean;
+}
+
+/** Outcome of the immediate submission requested with `submit: true`. */
+export interface TemplateSubmission {
+  submitted: boolean;
+  /** e.g. `no_template_capable_channel` when nothing in the workspace has a WABA. */
+  error: string | null;
+}
+
+export interface TemplateFromPreset {
+  /** Always created, even when submission failed. */
+  template: Template;
+  /** `null` when submission was not requested. */
+  submission: TemplateSubmission | null;
 }
 
 export interface SendTemplateParams {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Page } from '../src/index.js';
+import { NotFoundError, Page, ValidationError } from '../src/index.js';
 import { paginated, stubFetch, testClient } from './helpers.js';
 
 describe('messages', () => {
@@ -93,6 +93,21 @@ describe('contacts', () => {
 });
 
 describe('channels', () => {
+  it('exposes supports_templates and waba_id', async () => {
+    const { client } = testClient({
+      body: paginated([
+        { id: '01HCH1', type: 'cloud_api', supports_templates: true, waba_id: 'WABA1' },
+        { id: '01HCH2', type: 'baileys', supports_templates: false, waba_id: null },
+      ]),
+    });
+
+    const page = await client.channels.list();
+    const capable = page.data.filter((channel) => channel.supports_templates === true);
+
+    expect(capable.map((channel) => channel.id)).toEqual(['01HCH1']);
+    expect(capable[0]?.waba_id).toBe('WABA1');
+  });
+
   it('whatsapp() uses the family alias', async () => {
     const { client, stub } = testClient({ body: paginated([]) });
 
@@ -151,6 +166,240 @@ describe('templates', () => {
 
     expect(stub.last().path).toBe('/api/v1/templates/send');
     expect(stub.last().body).toMatchObject({ template_name: 'order_ready', language: 'ar' });
+  });
+
+  it('list forwards category, group and preset_key and exposes the new fields', async () => {
+    const { client, stub } = testClient({
+      body: {
+        data: [
+          {
+            id: '01HT',
+            name: 'order_shipped',
+            status: 'draft',
+            group: 'Orders',
+            preset_key: 'order_shipped',
+            channel_id: '01HCH',
+            example_variables: ['Sara', '12345'],
+          },
+        ],
+      },
+    });
+
+    const [template] = await client.templates.list({
+      category: 'UTILITY',
+      group: 'Orders',
+      preset_key: 'order_shipped',
+    });
+
+    expect(template?.group).toBe('Orders');
+    expect(template?.preset_key).toBe('order_shipped');
+    expect(template?.channel_id).toBe('01HCH');
+    expect(template?.example_variables).toEqual(['Sara', '12345']);
+    expect(stub.last().query.get('category')).toBe('UTILITY');
+    expect(stub.last().query.get('group')).toBe('Orders');
+    expect(stub.last().query.get('preset_key')).toBe('order_shipped');
+  });
+
+  it('save posts the definition, keeping an explicit null group', async () => {
+    const { client, stub } = testClient({
+      status: 201,
+      body: { data: { id: '01HT', name: 'notice', group: null, status: 'draft' } },
+    });
+
+    const template = await client.templates.save({
+      name: 'notice',
+      language: 'ar',
+      body_text: 'Hello {{1}}, thanks for your order.',
+      example_variables: ['Sara'],
+      group: null,
+    });
+
+    expect(template.id).toBe('01HT');
+    expect(stub.last().method).toBe('POST');
+    expect(stub.last().path).toBe('/api/v1/templates');
+    expect(stub.last().body).toHaveProperty('group', null);
+  });
+
+  it('save sends buttons and the template exposes them', async () => {
+    const buttons = [
+      { type: 'QUICK_REPLY', text: 'Confirm' },
+      { type: 'URL', text: 'Track', url: 'https://example.com/t/1' },
+      { type: 'PHONE_NUMBER', text: 'Call us', phone_number: '+966500000000' },
+    ] as const;
+    const { client, stub } = testClient({
+      status: 201,
+      body: { data: { id: '01HT', name: 'notice', buttons } },
+    });
+
+    const template = await client.templates.save({
+      name: 'notice',
+      language: 'ar',
+      body_text: 'Hello {{1}}, thanks for your order.',
+      buttons: [...buttons],
+    });
+
+    expect(stub.last().body).toHaveProperty('buttons', buttons);
+    expect(template.buttons).toEqual(buttons);
+    const url = template.buttons?.find((b) => b.type === 'URL');
+    expect(url?.type === 'URL' ? url.url : null).toBe('https://example.com/t/1');
+  });
+
+  it('save without buttons leaves the key out so stored ones are kept', async () => {
+    const { client, stub } = testClient({
+      body: { data: { id: '01HT', buttons: [{ type: 'QUICK_REPLY', text: 'Ok' }] } },
+    });
+
+    await client.templates.save({
+      name: 'notice',
+      language: 'ar',
+      body_text: 'Hello {{1}}, thanks for your order.',
+    });
+
+    expect(stub.last().body).not.toHaveProperty('buttons');
+  });
+
+  it('save with an empty button list sends [] to clear them', async () => {
+    const { client, stub } = testClient({ body: { data: { id: '01HT', buttons: null } } });
+
+    const template = await client.templates.save({
+      name: 'notice',
+      language: 'ar',
+      body_text: 'Hello {{1}}, thanks for your order.',
+      buttons: [],
+    });
+
+    expect(stub.last().body).toHaveProperty('buttons', []);
+    expect(template.buttons).toBeNull();
+  });
+
+  it('submit posts to /templates/{id}/submit with the optional channel', async () => {
+    const { client, stub } = testClient({ body: { data: { id: '01HT', status: 'pending' } } });
+
+    const submitted = await client.templates.submit('01HT', '01HCH');
+    expect(submitted.status).toBe('pending');
+    expect(stub.last().path).toBe('/api/v1/templates/01HT/submit');
+    expect(stub.last().body).toEqual({ channel_id: '01HCH' });
+
+    await client.templates.submit('01HT');
+    expect(stub.last().body).toEqual({});
+  });
+
+  it('submit surfaces no_template_capable_channel as a ValidationError', async () => {
+    const { client } = testClient({
+      status: 422,
+      body: { message: 'no_template_capable_channel' },
+    });
+
+    await expect(client.templates.submit('01HT')).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('delete confirms the removal', async () => {
+    const { client, stub } = testClient({ body: { deleted: true } });
+
+    await expect(client.templates.delete('01HT')).resolves.toBe(true);
+    expect(stub.last().method).toBe('DELETE');
+    expect(stub.last().path).toBe('/api/v1/templates/01HT');
+  });
+
+  it('presets lists the library and forwards the filters', async () => {
+    const { client, stub } = testClient({
+      body: {
+        data: [
+          {
+            key: 'order_shipped',
+            name: 'order_shipped',
+            group: 'commerce',
+            group_label: 'Commerce',
+            category: 'utility',
+            title: 'Order shipped',
+            description: 'Tell the customer the order is on its way.',
+            languages: ['ar', 'en'],
+            variants: [
+              {
+                language: 'en',
+                header_type: null,
+                header_text: null,
+                body_text: 'Hello {{1}}, order {{2}} has shipped today.',
+                footer_text: null,
+                buttons: [],
+                example_variables: ['Sara', '12345'],
+                variable_count: 2,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const presets = await client.templates.presets({
+      category: 'utility',
+      group: 'commerce',
+      language: 'en',
+    });
+
+    expect(presets[0]?.key).toBe('order_shipped');
+    expect(presets[0]?.variants[0]?.variable_count).toBe(2);
+    expect(stub.last().method).toBe('GET');
+    expect(stub.last().path).toBe('/api/v1/templates/presets');
+    expect(stub.last().query.get('category')).toBe('utility');
+    expect(stub.last().query.get('group')).toBe('commerce');
+    expect(stub.last().query.get('language')).toBe('en');
+  });
+
+  it('createFromPreset returns the template and the submission outcome', async () => {
+    const { client, stub } = testClient([
+      {
+        status: 201,
+        body: {
+          data: { id: '01HT1', name: 'order_shipped', status: 'pending', preset_key: 'order_shipped' },
+          meta: { submission: { submitted: true, error: null } },
+        },
+      },
+      {
+        status: 201,
+        body: {
+          data: { id: '01HT2', name: 'order_shipped_2', status: 'draft' },
+          meta: { submission: { submitted: false, error: 'no_template_capable_channel' } },
+        },
+      },
+      {
+        status: 201,
+        body: { data: { id: '01HT3', name: 'order_shipped_3', status: 'draft' }, meta: { submission: null } },
+      },
+    ]);
+
+    const ok = await client.templates.createFromPreset('order_shipped', {
+      language: 'en',
+      channel_id: '01HCH',
+      group: 'Orders',
+      submit: true,
+    });
+    expect(stub.last().method).toBe('POST');
+    expect(stub.last().path).toBe('/api/v1/templates/presets/order_shipped');
+    expect(stub.last().body).toEqual({
+      language: 'en',
+      channel_id: '01HCH',
+      group: 'Orders',
+      submit: true,
+    });
+    expect(ok.template.preset_key).toBe('order_shipped');
+    expect(ok.submission).toEqual({ submitted: true, error: null });
+
+    const failed = await client.templates.createFromPreset('order_shipped', { submit: true });
+    expect(failed.template.name).toBe('order_shipped_2');
+    expect(failed.submission).toEqual({ submitted: false, error: 'no_template_capable_channel' });
+
+    const draft = await client.templates.createFromPreset('order_shipped');
+    expect(draft.template.id).toBe('01HT3');
+    expect(draft.submission).toBeNull();
+  });
+
+  it('createFromPreset rejects an unknown preset with NotFoundError', async () => {
+    const { client } = testClient({ status: 404, body: { message: 'preset_not_found' } });
+
+    await expect(client.templates.createFromPreset('no_such_preset')).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
   });
 });
 

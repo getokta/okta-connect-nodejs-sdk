@@ -5,6 +5,37 @@ All notable changes to `@getokta/okta-connect-sdk` are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] — 2026-10-26
+
+### Added
+- **Template library** — `templates.presets(params)` lists the platform's
+  ready-made templates (`GET /api/v1/templates/presets`, filters `category` /
+  `group` / `language`) as `TemplatePreset` with one `TemplatePresetVariant`
+  per language. `templates.createFromPreset(key, params)` copies one into the
+  workspace as a draft (`language`, `channel_id`, `name`, `group`, `submit`)
+  and resolves to `{ template, submission }`. The template is created even
+  when submission fails, so check `submission.submitted` rather than waiting
+  for a rejection.
+- **Template authoring** — `templates.save()` (create or update a draft,
+  `POST /api/v1/templates`), `templates.submit(id, channelId?)` and
+  `templates.delete(id)`. These endpoints already existed on the platform; the
+  SDK had no wrapper. `save()` takes `group`: omit it to keep the folder,
+  `null` or `''` to clear it.
+- **Template buttons** — `SaveTemplateParams.buttons`: up to 3
+  `TemplateButton`s (`QUICK_REPLY`, `URL` with `url`, `PHONE_NUMBER` with
+  `phone_number`; `text` ≤25 chars). Same rule as `group`: omit it to keep the
+  stored buttons (e.g. ones added in the dashboard), `[]` or `null` removes
+  them. The SDK never defaults it, so a call that does not send `buttons`
+  cannot wipe them.
+- `TemplateListParams` gains `category`, `group` and `preset_key`.
+- `Template` gains `group`, `preset_key`, `channel_id` and
+  `example_variables`, and `buttons` is now typed `TemplateButton[] | null`
+  (was `unknown[] | null`). `channel_id` is the channel to submit through;
+  `example_variables` must go back with any edit.
+- `Channel` gains `supports_templates` and `waba_id`, so a client can choose
+  a template-capable channel instead of guessing (a QR-paired number has no
+  WABA and is refused with `no_template_capable_channel`).
+
 ## [2.2.0] — 2026-08-19
 
 ### Changed
