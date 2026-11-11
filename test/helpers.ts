@@ -76,7 +76,8 @@ export function stubFetch(responses: StubResponse | StubResponse[]): FetchStub {
 
     const body = stub.body === undefined ? '' : JSON.stringify(stub.body);
 
-    return new Response(body, {
+    // A 204 has no body, and `Response` refuses to be given one — even an empty string.
+    return new Response(stub.status === 204 ? null : body, {
       status: stub.status ?? 200,
       headers: { 'content-type': 'application/json', ...(stub.headers ?? {}) },
     });

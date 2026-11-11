@@ -126,8 +126,58 @@ export interface MessageMedia {
 /** The agent (or system user) who composed an outbound message. */
 export interface MessageSender {
   id: Ulid;
+  /** The id YOUR system knows this member by (`members.upsert`), when it has one. */
+  external_id?: string | null;
   name: string | null;
   email: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Members
+// ---------------------------------------------------------------------------
+
+/** Roles an integration may hand out. Owners and admins stay with the dashboard. */
+export type MemberRole = 'manager' | 'agent' | 'member';
+
+export interface Member {
+  id: Ulid;
+  /** The id YOUR system knows them by. */
+  external_id: string | null;
+  name: string | null;
+  /** `null` for a member known only by `external_id`. */
+  email: string | null;
+  role: string | null;
+  /** `active` | `suspended`. */
+  status: string | null;
+  joined_at: IsoDateTime | null;
+}
+
+/** `external_id` or `email` is required. */
+export type UpsertMemberParams = (
+  | { external_id: string; email?: string }
+  | { external_id?: string; email: string }
+) & {
+  name?: string;
+  /** Defaults to `agent`. */
+  role?: MemberRole;
+  phone?: string;
+  locale?: string;
+};
+
+export interface UpdateMemberParams {
+  name?: string;
+  role?: MemberRole;
+  status?: 'active' | 'suspended';
+}
+
+export interface MemberListParams extends PaginationParams {
+  external_id?: string;
+}
+
+export interface MemberUpsertResult {
+  member: Member;
+  /** `true` when this call created the member, `false` when it found them. */
+  created: boolean;
 }
 
 export interface Message {
@@ -165,6 +215,13 @@ export interface SendMessageParams {
   body?: string;
   /** Publicly fetchable HTTPS URL, for image/document/audio/video. */
   media_url?: string;
+  /**
+   * The workspace member the message is recorded under: Connect's id,
+   * `ext:<your id>`, or an e-mail (see `client.members`). Omitted, the
+   * message is signed by the token's owner. A sender that is not an active
+   * member is refused with a 422, never silently replaced.
+   */
+  sender?: string;
 }
 
 export interface MessageListParams extends PaginationParams {
@@ -339,6 +396,10 @@ export interface SendTemplateParams {
   language?: string;
   /** Positional values for the body's `{{1}}`, `{{2}}`, … placeholders. */
   variables?: Array<string | number>;
+  /** The file for a template whose header is an image, video or document. */
+  header_media_url?: string;
+  /** The member the message is recorded under — see {@link SendMessageParams.sender}. */
+  sender?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -399,12 +460,22 @@ export interface Campaign {
 export interface CampaignAudienceFilter {
   contact_ids?: Ulid[];
   tag_slugs?: string[];
+  /**
+   * Only people who have written to the sending number. Defaults to `true`
+   * on a QR-linked number, where messaging strangers is what gets it banned.
+   */
+  engaged_only?: boolean;
 }
 
 export interface CreateCampaignParams {
   name: string;
   channel_id: Ulid;
+  /** Free text, for a channel that is not an official WhatsApp number. */
+  text?: string;
+  /** An approved template; pass `template_params` with it. */
   template_id?: Ulid;
+  /** One value per `{{N}}` in the template body, in order. May hold `{name}`-style contact variables. */
+  template_params?: string[];
   /** `bulk` (default) or `drip`. */
   type?: string;
   /** Omit to target every opted-in contact. */

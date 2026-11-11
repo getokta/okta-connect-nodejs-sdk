@@ -91,6 +91,13 @@ export interface MessageEventPayload {
   conversation?: { id?: Ulid; kind?: ConversationKind; [key: string]: unknown };
   channel?: { id?: Ulid; type?: ChannelType; name?: string | null; [key: string]: unknown };
   contact?: { name?: string | null; phone?: string | null; [key: string]: unknown };
+  /** Who wrote an outbound message; `null` for inbound and for bots. */
+  sender?: {
+    id?: Ulid;
+    /** The id YOUR system knows that member by. */
+    external_id?: string | null;
+    name?: string | null;
+  } | null;
   [key: string]: unknown;
 }
 

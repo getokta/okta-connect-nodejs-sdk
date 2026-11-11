@@ -100,6 +100,40 @@ const messages = await client.conversations.messages(conversationId, { per_page:
 Media is **not** uploaded through the platform: pass a publicly fetchable HTTPS
 URL and the provider fetches it, so keep it reachable until delivery.
 
+### Members — record each message under the person who sent it
+
+A token belongs to one account, so by default everything you send is signed
+by that one account. Add your own users as members, then name the sender:
+
+```ts
+// When your product adds (or changes) an employee. Idempotent on external_id.
+const { member, created } = await client.members.upsert({
+  external_id: 'emp-41', // the id YOUR system knows them by
+  name: 'Sara',
+  email: 'sara@school.example', // optional
+  role: 'agent', // manager | agent (default) | member
+});
+
+// Send on their behalf: the inbox, the API and webhooks show "Sara".
+const message = await client.messages.sendText(channelId, '966500000000', 'Hello', {
+  sender: 'ext:emp-41',
+});
+
+message.sender?.external_id; // 'emp-41'
+
+// When they leave.
+await client.members.update('ext:emp-41', { status: 'suspended' });
+await client.members.remove('ext:emp-41');
+```
+
+A member is referenced by Connect's id, `ext:<your id>`, or an e-mail.
+Changing members needs the `members` token ability (or `admin`). A repeat
+`upsert()` only touches the fields you pass — it never resets a role set in
+the dashboard or re-activates someone you suspended. A `sender` that is not
+an active member is refused with a 422 rather than replaced by someone else.
+Members added this way cannot sign in on their own; they reach the inbox
+through your embedded session (put the member's e-mail in the embed token).
+
 ### Contacts and tags
 
 ```ts

@@ -146,6 +146,7 @@ export { EmailTemplates } from './resources/email-templates.js';
 export { Emails, type HtmlSource } from './resources/emails.js';
 export { EmbedTokens } from './resources/embed-tokens.js';
 export { Groups } from './resources/groups.js';
+export { Members } from './resources/members.js';
 export {
   isRetryableQrSession,
   isTerminalQrSession,
@@ -153,7 +154,7 @@ export {
   qrTtlSeconds,
   QrPairing,
 } from './resources/integrations.js';
-export { Messages } from './resources/messages.js';
+export { Messages, type SendOptions } from './resources/messages.js';
 export { Resource } from './resources/resource.js';
 export { SocialPosts } from './resources/social-posts.js';
 export { Tags } from './resources/tags.js';

@@ -4,6 +4,20 @@ import type { Ulid } from '../types/common.js';
 import type { Message, MessageListParams, SendMessageParams } from '../types/resources.js';
 import { Resource } from './resource.js';
 
+/** Request options for the send helpers, plus who the message is sent as. */
+export type SendOptions = RequestOptions & {
+  /** The member the message is recorded under — see {@link SendMessageParams.sender}. */
+  sender?: string;
+};
+
+function split(options?: SendOptions): { sender?: string; request?: RequestOptions } {
+  if (!options) return {};
+
+  const { sender, ...request } = options;
+
+  return { ...(sender ? { sender } : {}), request };
+}
+
 /**
  * `POST /api/v1/messages` — outbound sending, plus conversation-scoped reads.
  *
@@ -34,9 +48,14 @@ export class Messages extends Resource {
     channelId: Ulid,
     waId: string,
     body: string,
-    options?: RequestOptions,
+    options?: SendOptions,
   ): Promise<Message> {
-    return this.send({ channel_id: channelId, wa_id: waId, type: 'text', body }, options);
+    const { sender, request } = split(options);
+
+    return this.send(
+      { channel_id: channelId, wa_id: waId, type: 'text', body, ...(sender ? { sender } : {}) },
+      request,
+    );
   }
 
   /**
@@ -50,17 +69,31 @@ export class Messages extends Resource {
     type: 'image' | 'document' | 'audio' | 'video',
     mediaUrl: string,
     caption = '',
-    options?: RequestOptions,
+    options?: SendOptions,
   ): Promise<Message> {
+    const { sender, request } = split(options);
+
     return this.send(
-      { channel_id: channelId, wa_id: waId, type, body: caption, media_url: mediaUrl },
-      options,
+      {
+        channel_id: channelId,
+        wa_id: waId,
+        type,
+        body: caption,
+        media_url: mediaUrl,
+        ...(sender ? { sender } : {}),
+      },
+      request,
     );
   }
 
   /** Reply into an existing conversation by its ULID. */
-  reply(conversationId: Ulid, body: string, options?: RequestOptions): Promise<Message> {
-    return this.send({ conversation_id: conversationId, type: 'text', body }, options);
+  reply(conversationId: Ulid, body: string, options?: SendOptions): Promise<Message> {
+    const { sender, request } = split(options);
+
+    return this.send(
+      { conversation_id: conversationId, type: 'text', body, ...(sender ? { sender } : {}) },
+      request,
+    );
   }
 
   /**
