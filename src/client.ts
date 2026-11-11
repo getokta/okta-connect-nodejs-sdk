@@ -11,6 +11,7 @@ import { Emails } from './resources/emails.js';
 import { EmbedTokens } from './resources/embed-tokens.js';
 import { Groups } from './resources/groups.js';
 import { Meta, QrPairing } from './resources/integrations.js';
+import { Members } from './resources/members.js';
 import { Messages } from './resources/messages.js';
 import { SocialPosts } from './resources/social-posts.js';
 import { Tags } from './resources/tags.js';
@@ -45,6 +46,9 @@ import type { Connection } from './types/resources.js';
 export class OktaConnect {
   /** Outbound sending + conversation-scoped message reads. */
   readonly messages: Messages;
+
+  /** The workspace's people, so a message can be sent as one of them. */
+  readonly members: Members;
 
   /** The unified inbox. */
   readonly conversations: Conversations;
@@ -99,6 +103,7 @@ export class OktaConnect {
     this.httpClient = new HttpClient(this.config);
 
     this.messages = new Messages(this.httpClient);
+    this.members = new Members(this.httpClient);
     this.conversations = new Conversations(this.httpClient);
     this.contacts = new Contacts(this.httpClient);
     this.channels = new Channels(this.httpClient);

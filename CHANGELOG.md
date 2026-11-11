@@ -5,6 +5,39 @@ All notable changes to `@getokta/okta-connect-sdk` are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] — 2026-11-11
+
+### Added
+- **Members** — `client.members` manages the people of the workspace from
+  your own system: `upsert()` (idempotent on `external_id`, then `email`;
+  resolves `{ member, created }`), `list()` / `listAll()`, `get()`,
+  `update()` and `remove()`. A member is referenced by Connect's id, by
+  `ext:<your id>` (`Members.external(id)`), or by e-mail. Changing members
+  needs the new `members` token ability (or `admin`). A repeat `upsert()`
+  never resets a role or re-activates a suspended member.
+- **Sending as a member** — `messages.sendText()`, `sendMedia()` and
+  `reply()` accept `{ sender }` in their options (new `SendOptions` type),
+  and `SendMessageParams` / `SendTemplateParams` gain `sender`. The message
+  is recorded under that member's name in the inbox, the API and webhooks.
+  A sender that is not an active member is refused with a 422.
+- `MessageSender.external_id`, and `sender` on `MessageEventPayload`.
+- `SendTemplateParams.header_media_url` for media-header templates.
+- `CreateCampaignParams.text` / `template_params` and
+  `CampaignAudienceFilter.engaged_only`.
+
+### Changed (server behaviour the SDK now documents)
+- `templates.send()` answers 422 for a template that is not approved or a
+  channel that has no templates, instead of 201 followed by a failure.
+- `campaigns.create()` takes the message (`text`, or `template_id` +
+  `template_params`); `queue()` refuses a campaign with no message. A
+  campaign created with only `template_id` used to send empty messages.
+- Messages pushed through a QR-linked number to people who are not in a live
+  conversation are spaced a few seconds apart; they stay `queued` until
+  their turn.
+- New failure codes on a message's `error.code`: `not_on_whatsapp`,
+  `stood_down`, `wa_463` (WhatsApp restricted the number),
+  `twin_window_closed`, `campaign_stopped`, `opted_out`.
+
 ## [2.3.0] — 2026-10-26
 
 ### Added

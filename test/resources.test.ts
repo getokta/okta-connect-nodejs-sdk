@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NotFoundError, Page, ValidationError } from '../src/index.js';
+import { Members, NotFoundError, Page, ValidationError } from '../src/index.js';
 import { paginated, stubFetch, testClient } from './helpers.js';
 
 describe('messages', () => {
@@ -638,5 +638,78 @@ describe('connection introspection', () => {
 
     await expect(client.revokeConnection()).resolves.toBe(true);
     expect(stub.last().path).toBe('/api/v1/oauth/revoke');
+  });
+});
+
+describe('members', () => {
+  it('upsert PUTs the member and reports whether it was created', async () => {
+    const member = { id: '01HUSR', external_id: 'emp-41', name: 'Sara', email: null, role: 'agent', status: 'active' };
+    const { client, stub } = testClient([
+      { status: 201, body: { data: member } },
+      { status: 200, body: { data: member } },
+    ]);
+
+    const first = await client.members.upsert({ external_id: 'emp-41', name: 'Sara' });
+    const again = await client.members.upsert({ external_id: 'emp-41', name: 'Sara' });
+
+    expect(first.created).toBe(true);
+    expect(again.created).toBe(false);
+    expect(first.member.external_id).toBe('emp-41');
+    expect(stub.requests[0]?.method).toBe('PUT');
+    expect(stub.requests[0]?.path).toBe('/api/v1/members');
+    expect(stub.requests[0]?.body).toEqual({ external_id: 'emp-41', name: 'Sara' });
+  });
+
+  it('addresses a member by your own id, slashes and all', async () => {
+    const { client, stub } = testClient({ body: { data: { id: '01HUSR', status: 'suspended' } } });
+
+    const member = await client.members.update(Members.external('staff/9'), { status: 'suspended' });
+
+    expect(member.status).toBe('suspended');
+    expect(stub.last().method).toBe('PATCH');
+    expect(stub.last().path).toBe('/api/v1/members/ext%3Astaff/9');
+  });
+
+  it('removes a member', async () => {
+    const { client, stub } = testClient({ status: 204 });
+
+    await client.members.remove('ext:emp-41');
+
+    expect(stub.last().method).toBe('DELETE');
+  });
+});
+
+describe('sending as a member', () => {
+  it('puts the sender in the body and keeps it out of the request options', async () => {
+    const { client, stub } = testClient({
+      body: { data: { id: '01HMSG', sender: { id: '01HUSR', external_id: 'emp-41', name: 'Sara', email: null } } },
+    });
+
+    const message = await client.messages.sendText('01HCH', '966500000000', 'Hello', {
+      sender: 'ext:emp-41',
+      idempotencyKey: 'op-1',
+    });
+
+    expect(stub.last().body).toEqual({
+      channel_id: '01HCH',
+      wa_id: '966500000000',
+      type: 'text',
+      body: 'Hello',
+      sender: 'ext:emp-41',
+    });
+    expect(stub.last().headers['idempotency-key']).toBe('op-1');
+    expect(message.sender?.external_id).toBe('emp-41');
+  });
+
+  it('carries the sender on a reply and on media, and omits it when unnamed', async () => {
+    const { client, stub } = testClient({ body: { data: {} } });
+
+    await client.messages.reply('01HCONV', 'On it', { sender: '01HUSR' });
+    await client.messages.sendMedia('01HCH', '966500000000', 'image', 'https://cdn.test/a.jpg', '', { sender: '01HUSR' });
+    await client.messages.sendText('01HCH', '966500000000', 'Hello');
+
+    expect((stub.requests[0]?.body as { sender?: string }).sender).toBe('01HUSR');
+    expect((stub.requests[1]?.body as { sender?: string }).sender).toBe('01HUSR');
+    expect(stub.requests[2]?.body).not.toHaveProperty('sender');
   });
 });
